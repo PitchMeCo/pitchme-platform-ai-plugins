@@ -13,361 +13,43 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  release:
+  check:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - run: python3 scripts/release.py check
+
+  bump:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:
-      group: ${{ github.event_name == 'pull_request' && format('check-{0}', github.ref) || 'plugin-release' }}
+      group: plugin-release
       cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 0
+      - env:
+          BUMP: ${{ inputs.bump }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release.py bump
 
-      - if: github.event_name != 'workflow_dispatch'
-        uses: actions/checkout@v6
+  tag:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - id: plan
-        name: Check versions, bump, or choose the tag
-        env:
-          MODE: ${{ github.event_name == 'workflow_dispatch' && 'bump' || github.event_name == 'push' && 'tag' || 'check' }}
-          BUMP: ${{ inputs.bump }}
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import datetime
-          import json
-          import os
-          import re
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
-          GITHUB_MERGE = re.compile(r"^Merge pull request #(\d+) from \S+$")
-          SQUASH = re.compile(r"^(?P<title>.+?) \(#(?P<num>\d+)\)$")
-          RELEASE = re.compile(r"^Release (\d+\.\d+\.\d+)$")
-          MERGE_RELEASE = re.compile(r"^Merge pull request #\d+ from \S+/release/(\d+\.\d+\.\d+)$")
-          SKIP_SUBJECTS = {"Initial commit"}
-
-          def git(*args: str) -> str:
-              return subprocess.check_output(["git", *args], text=True)
-
-          def output(name: str, value: str) -> None:
-              path = os.environ.get("GITHUB_OUTPUT")
-              line = f"{name}={value}\n"
-              if not path:
-                  print(line, end="")
-                  return
-              with open(path, "a", encoding="utf-8") as handle:
-                  handle.write(line)
-
-          def manifests() -> list[Path]:
-              found = sorted(Path("plugins").glob("*/plugin.json"))
-              found += sorted(Path("plugins").glob("*/.cursor-plugin/plugin.json"))
-              found += sorted(Path("plugins").glob("*/.codex-plugin/plugin.json"))
-              if not found:
-                  raise SystemExit("no plugin manifests under plugins/")
-              return found
-
-          def marketplaces() -> list[Path]:
-              return [
-                  Path(".agents/plugins/marketplace.json"),
-                  Path(".cursor-plugin/marketplace.json"),
-              ]
-
-          def read_version() -> str:
-              found: list[tuple[str, str]] = []
-              for path in manifests():
-                  data = json.loads(path.read_text(encoding="utf-8"))
-                  if "version" not in data:
-                      raise SystemExit(f"{path} has no version")
-                  found.append((str(path), str(data["version"])))
-              for path in marketplaces():
-                  data = json.loads(path.read_text(encoding="utf-8"))
-                  plugins = data.get("plugins") or []
-                  if not plugins:
-                      raise SystemExit(f"{path} has no plugins")
-                  for plugin in plugins:
-                      name = str(plugin.get("name", "?"))
-                      if "version" not in plugin or "ref" not in plugin:
-                          raise SystemExit(f"{path} plugin {name} needs version and ref")
-                      found.append((f"{path}:{name}:version", str(plugin["version"])))
-                      found.append((f"{path}:{name}:ref", str(plugin["ref"])))
-              values = {value for _, value in found}
-              if len(values) != 1:
-                  detail = "\n".join(f"{label} = {value}" for label, value in found)
-                  raise SystemExit(f"version fields disagree\n{detail}")
-              version = values.pop()
-              mark = f"Current plugin version: **{version}**."
-              if mark not in Path("README.md").read_text(encoding="utf-8"):
-                  raise SystemExit(f"README.md is missing {mark}")
-              return version
-
-          def title_from_body(body: str, fallback: str) -> str:
-              for line in body.splitlines():
-                  stripped = line.strip()
-                  if not stripped or stripped.startswith(("*", "Co-authored-by:")):
-                      continue
-                  return stripped
-              return fallback
-
-          def bullet(subject: str, body: str, pull_url: str) -> str | None:
-              subject = subject.strip()
-              if not subject or subject in SKIP_SUBJECTS:
-                  return None
-              merge = GITHUB_MERGE.match(subject)
-              if merge is not None:
-                  title = title_from_body(body, subject)
-                  if RELEASE.match(title):
-                      return None
-                  return f"* {title} in {pull_url}/{merge.group(1)}"
-              squash = SQUASH.match(subject)
-              if squash is not None:
-                  title = squash.group("title")
-                  if RELEASE.match(title) or title in SKIP_SUBJECTS:
-                      return None
-                  return f"* {title} in {pull_url}/{squash.group('num')}"
-              if RELEASE.match(subject):
-                  return None
-              return f"* {subject}"
-
-          def render_notes(text: str, pull_url: str) -> list[str]:
-              seen: set[str] = set()
-              notes: list[str] = []
-              for chunk in text.split("---COMMIT---\n"):
-                  if not chunk.strip():
-                      continue
-                  lines = chunk.splitlines()
-                  line = bullet(lines[0] if lines else "", "\n".join(lines[1:]), pull_url.rstrip("/"))
-                  if line and line not in seen:
-                      seen.add(line)
-                      notes.append(line)
-              return notes
-
-          def self_test() -> None:
-              sample = """---COMMIT---
-          Merge pull request #1 from PitchMeCo/feature/TECH-239-add-plugins
-          Add the Pitchme Platform plugin.
-          ---COMMIT---
-          Release 1.0.0
-          PitchMe-Release-Version: 1.0.0
-          ---COMMIT---
-          Add the Pitchme Platform plugin. (#1)
-          ---COMMIT---
-          Initial commit
-          """
-              expected = [
-                  "* Add the Pitchme Platform plugin. in https://github.com/PitchMeCo/pitchme-platform-ai-plugins/pull/1",
-              ]
-              actual = render_notes(sample, "https://github.com/PitchMeCo/pitchme-platform-ai-plugins/pull")
-              if actual != expected:
-                  raise SystemExit(f"changelog self-test failed: {actual}")
-              samples = {
-                  "Release 1.2.3\nPitchMe-Release-Version: 1.2.3\n": "1.2.3",
-                  "Release 1.2.3 (#4)": "1.2.3",
-                  "Merge pull request #4 from PitchMeCo/release/1.2.3": "1.2.3",
-                  "Add the plugin.": None,
-              }
-              for message, want in samples.items():
-                  if release_version(message) != want:
-                      raise SystemExit(f"release parser failed for {message!r}")
-
-          def release_version(message: str) -> str | None:
-              for line in message.splitlines():
-                  prefix = "PitchMe-Release-Version: "
-                  if line.startswith(prefix):
-                      version = line[len(prefix):].strip()
-                      if not SEMVER.match(version):
-                          raise SystemExit(f"bad PitchMe-Release-Version {version}")
-                      return version
-              subject = message.splitlines()[0].strip() if message.strip() else ""
-              match = RELEASE.match(subject) or re.match(r"^Release (\d+\.\d+\.\d+) \(#\d+\)$", subject)
-              if match:
-                  return match.group(1)
-              merge = MERGE_RELEASE.match(subject)
-              if merge:
-                  return merge.group(1)
-              return None
-
-          def next_version(current: str, bump: str) -> str:
-              if SEMVER.match(bump):
-                  return bump
-              major, minor, patch = (int(part) for part in current.split("."))
-              if bump == "patch":
-                  patch += 1
-              elif bump == "minor":
-                  minor += 1
-                  patch = 0
-              elif bump == "major":
-                  major += 1
-                  minor = 0
-                  patch = 0
-              else:
-                  raise SystemExit("bump must be patch, minor, major, or x.y.z")
-              return f"{major}.{minor}.{patch}"
-
-          def replace_text(path: Path, old: str, new: str, refs: bool) -> None:
-              text = path.read_text(encoding="utf-8")
-              old_version = f'"version": "{old}"'
-              if old_version not in text:
-                  raise SystemExit(f"no {old_version} in {path}")
-              text = text.replace(old_version, f'"version": "{new}"')
-              if refs:
-                  old_ref = f'"ref": "{old}"'
-                  if old_ref not in text:
-                      raise SystemExit(f"no {old_ref} in {path}")
-                  text = text.replace(old_ref, f'"ref": "{new}"')
-              path.write_text(text, encoding="utf-8")
-
-          def log_range(previous: str) -> str:
-              if git("tag", "--list", previous).strip():
-                  return f"{previous}..HEAD"
-              if previous == "0.0.0":
-                  return "HEAD"
-              introduced = git(
-                  "log", "-1", "--format=%H", "-S", f"Current plugin version: **{previous}**.", "--", "README.md"
-              ).strip()
-              if introduced:
-                  return f"{introduced}..HEAD"
-              return "HEAD"
-
-          def write_changelog(version: str, notes: list[str]) -> None:
-              path = Path("CHANGELOG.md")
-              existing = path.read_text(encoding="utf-8") if path.exists() else "# Changelog\n"
-              rest = existing[len("# Changelog"):].lstrip("\n") if existing.startswith("# Changelog") else existing
-              body = "\n".join(notes) if notes else "No commits since the previous release."
-              date = datetime.date.today().isoformat()
-              text = f"# Changelog\n\n## {version} — {date}\n\n{body}\n"
-              if rest.strip():
-                  text += f"\n{rest if rest.endswith(chr(10)) else rest + chr(10)}"
-              path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
-
-          def bump_to(current: str, bump: str) -> str:
-              new = next_version(current, bump)
-              if new == current:
-                  raise SystemExit(f"version is already {current}")
-              repo = os.environ.get("GITHUB_REPOSITORY", "PitchMeCo/pitchme-platform-ai-plugins")
-              pull_url = f"https://github.com/{repo}/pull"
-              span = log_range(current)
-              raw = git("log", "--first-parent", "--format=---COMMIT---%n%s%n%b", span)
-              notes = render_notes(raw, pull_url)
-              if git("tag", "--list", current).strip():
-                  notes.extend(["", f"Full changelog: https://github.com/{repo}/compare/{current}...{new}"])
-              for path in manifests():
-                  replace_text(path, current, new, refs=False)
-              for path in marketplaces():
-                  replace_text(path, current, new, refs=True)
-              readme = Path("README.md")
-              mark = f"Current plugin version: **{current}**."
-              readme.write_text(
-                  readme.read_text(encoding="utf-8").replace(mark, f"Current plugin version: **{new}**.", 1),
-                  encoding="utf-8",
-              )
-              write_changelog(new, notes)
-              if read_version() != new:
-                  raise SystemExit("bump left the version fields disagreeing")
-              return new
-
-          def declared_release() -> str | None:
-              declared = release_version(git("log", "-1", "--format=%B"))
-              if declared is not None:
-                  return declared
-              parents = git("rev-list", "--parents", "-1", "HEAD").split()
-              if len(parents) > 2:
-                  return release_version(git("log", "-1", "--format=%B", parents[2]))
-              return None
-
-          self_test()
-          current = read_version()
-          mode = os.environ.get("MODE", "check")
-          print(f"ok: version {current}")
-          if mode == "check":
-              sys.exit(0)
-          if mode == "bump":
-              bumped = bump_to(current, os.environ.get("BUMP", "").strip())
-              print(f"bumped {current} -> {bumped}")
-              output("version", bumped)
-              sys.exit(0)
-          if mode == "tag":
-              declared = declared_release()
-              if not declared:
-                  print("this commit was not produced by the Release workflow; no tag")
-                  sys.exit(0)
-              if declared != current:
-                  raise SystemExit(f"commit version {declared} does not match plugin version {current}")
-              remote = subprocess.run(
-                  ["git", "ls-remote", "origin", f"refs/tags/{declared}"],
-                  check=True,
-                  text=True,
-                  capture_output=True,
-              )
-              if remote.stdout.strip():
-                  print(f"tag {declared} already exists")
-                  sys.exit(0)
-              output("tag", declared)
-              sys.exit(0)
-          raise SystemExit(f"unknown mode {mode}")
-          PY
-
-      - name: Open the release pull request
-        if: steps.plan.outputs.version != ''
-        env:
-          VERSION: ${{ steps.plan.outputs.version }}
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          branch="release/${VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$branch"
-          git add plugins .cursor-plugin .agents README.md CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo "version bump did not change any release files" >&2
-            exit 1
-          fi
-          git commit -m "Release ${VERSION}" -m "PitchMe-Release-Version: ${VERSION}"
-          if git fetch origin "refs/heads/${branch}:refs/remotes/origin/${branch}"; then
-            git push --force-with-lease="refs/heads/${branch}:refs/remotes/origin/${branch}" origin "HEAD:refs/heads/${branch}"
-          else
-            git push origin "HEAD:refs/heads/${branch}"
-          fi
-          head="${GITHUB_REPOSITORY%%/*}:${branch}"
-          open_count="$(gh pr list --base main --head "$head" --state open --json number --jq 'length')"
-          if [[ "$open_count" == "0" ]]; then
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "Release ${VERSION}" \
-              --body "$(printf '%s\n' \
-                "Automated release preparation for ${VERSION}." \
-                "" \
-                "Bumps every plugin manifest and both marketplace files to \`${VERSION}\`." \
-                "" \
-                "PitchMe-Release-Version: ${VERSION}" \
-                "" \
-                "After this pull request merges, the Release workflow tags that main commit when the message carries PitchMe-Release-Version. The workflow does not submit a catalog.")"
-          else
-            echo "Pull request for ${branch} is already open."
-          fi
-
-      - name: Push the release tag
-        if: steps.plan.outputs.tag != ''
-        env:
-          TAG: ${{ steps.plan.outputs.tag }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "v${TAG}"
-          git push origin "refs/tags/${TAG}"
+      - run: python3 scripts/release.py tag
