@@ -4,7 +4,7 @@ Search talent, run projects, and work in the PitchMe platform from your agent.
 
 The plugin is `plugins/pitchme-platform`. It connects to `https://mcp.platform.pitchme.co/mcp`. Sign in on the PitchMe consent screen as yourself.
 
-Current plugin version: **0.0.0**.
+Current plugin version: **1.0.0**.
 
 Run the **Release** workflow and set `bump` to `patch`, `minor`, `major`, or `x.y.z`. The workflow writes that version into every plugin manifest and both marketplace files, then opens a pull request. A push leaves the version unchanged and does not submit a catalog.
 
