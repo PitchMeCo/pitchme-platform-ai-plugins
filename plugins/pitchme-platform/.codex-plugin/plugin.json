@@ -1,0 +1,15 @@
+{
+  "name": "pitchme-platform",
+  "version": "0.0.0",
+  "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+  "author": {
+    "name": "PitchMe"
+  },
+  "mcpServers": "./mcp.json",
+  "interface": {
+    "displayName": "Pitchme Platform",
+    "shortDescription": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+    "developerName": "PitchMe",
+    "category": "Developer tools"
+  }
+}

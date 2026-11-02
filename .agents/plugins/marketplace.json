@@ -1,0 +1,21 @@
+{
+  "name": "pitchme-platform",
+  "interface": {
+    "displayName": "Pitchme Platform"
+  },
+  "plugins": [
+    {
+      "name": "pitchme-platform",
+      "source": {
+        "source": "local",
+        "path": "./plugins/pitchme-platform"
+      },
+      "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer tools"
+    }
+  ]
+}

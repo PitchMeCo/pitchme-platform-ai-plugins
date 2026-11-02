@@ -1,0 +1,22 @@
+{
+  "name": "pitchme-platform",
+  "displayName": "Pitchme Platform",
+  "version": "0.0.0",
+  "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+  "author": {
+    "name": "PitchMe"
+  },
+  "keywords": ["pitchme", "mcp"],
+  "mcpServers": "./mcp.cursor.json",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "MCP_URL": {
+        "type": "string",
+        "title": "Platform MCP URL",
+        "description": "Production is the default. Staging is https://mcp.platform.pitchme.build/mcp. A local tunnel is https://<name>.tunnel.pitchme.run/mcp.",
+        "default": "https://mcp.platform.pitchme.co/mcp"
+      }
+    }
+  }
+}
