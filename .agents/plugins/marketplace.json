@@ -11,8 +11,8 @@
         "path": "./plugins/pitchme-platform"
       },
       "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
-      "version": "0.0.0",
-      "ref": "0.0.0",
+      "version": "1.0.0",
+      "ref": "1.0.0",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
