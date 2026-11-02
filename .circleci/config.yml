@@ -1,0 +1,68 @@
+version: 2.1
+
+parameters:
+  prepare_release:
+    type: boolean
+    default: false
+  bump:
+    type: string
+    default: patch
+
+jobs:
+  check:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install shellcheck
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+      - run:
+          name: Run repository checks
+          command: ./scripts/check.sh
+
+  prepare-release:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install shellcheck
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+      - run:
+          name: Bump version and open a pull request
+          command: ./scripts/prepare-release.sh "$PREPARE_BUMP"
+          environment:
+            PREPARE_BUMP: << pipeline.parameters.bump >>
+
+  publish-release:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Tag the version on main
+          command: ./scripts/publish-release.sh
+
+workflows:
+  checks:
+    unless: << pipeline.parameters.prepare_release >>
+    jobs:
+      - check
+      - publish-release:
+          context: pitchme-platform-ai-plugins
+          requires:
+            - check
+          filters:
+            branches:
+              only: main
+
+  prepare-release:
+    when: << pipeline.parameters.prepare_release >>
+    jobs:
+      - prepare-release:
+          context: pitchme-platform-ai-plugins
