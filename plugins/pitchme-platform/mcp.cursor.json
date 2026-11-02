@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "Pitchme Platform": {
+      "type": "http",
+      "url": "${MCP_URL}"
+    }
+  }
+}

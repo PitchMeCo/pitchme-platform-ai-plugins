@@ -1,0 +1,17 @@
+{
+  "name": "pitchme-platform-ai-plugins",
+  "owner": {
+    "name": "PitchMe"
+  },
+  "metadata": {
+    "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "pitchme-platform",
+      "source": "plugins/pitchme-platform",
+      "description": "Search talent, run projects, and work in the PitchMe platform from your agent."
+    }
+  ]
+}
