@@ -6,7 +6,7 @@ The plugin is `plugins/pitchme-platform`. It connects to `https://mcp.platform.p
 
 Current plugin version: **0.0.0**.
 
-A person starts the CircleCI pipeline with `prepare_release` and `bump` set to `patch`, `minor`, `major`, or `x.y.z`. That job writes the next version into every plugin manifest and both marketplace files, then opens a pull request. A push does not bump the version, and the pipeline does not submit a catalog.
+Run the **Release** workflow and set `bump` to `patch`, `minor`, `major`, or `x.y.z`. The workflow writes that version into every plugin manifest and both marketplace files, then opens a pull request. A push leaves the version unchanged and does not submit a catalog.
 
 ## Cursor
 
