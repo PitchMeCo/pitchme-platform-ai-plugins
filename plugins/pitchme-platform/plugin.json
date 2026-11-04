@@ -1,11 +1,46 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pitchme-platform",
   "displayName": "Pitchme Platform",
   "version": "1.0.0",
   "description": "Search talent, run projects, and work in the PitchMe platform from your agent.",
   "author": {
-    "name": "PitchMe"
+    "name": "PitchMe",
+    "email": "support@pitchme.co",
+    "url": "https://pitchme.co"
   },
+  "homepage": "https://pitchme.co/docs/sdk/use-the-mcp-server/",
+  "repository": "https://github.com/PitchMeCo/pitchme-platform-ai-plugins",
+  "license": "MIT",
   "keywords": ["pitchme", "mcp"],
-  "mcpServers": "./mcp.json"
+  "mcpServers": "./mcp.json",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/get-started/SKILL.md",
+      "interface": {
+        "displayName": "Pitchme Platform",
+        "shortDescription": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+        "longDescription": "Search talent, run hiring projects, read the contract and Sonar balance, and open support tickets in the PitchMe account you sign in to. The session stays in that account and group.",
+        "developerName": "PitchMe",
+        "category": "Developer tools",
+        "capabilities": [
+          "Search talent",
+          "Run hiring projects",
+          "Read credits",
+          "Open support tickets"
+        ],
+        "defaultPrompt": [
+          "Who is signed in to PitchMe, and which account and group is this session locked to?",
+          "Find candidates for a role. I will give you the brief.",
+          "Check my Sonar credits before revealing a contact."
+        ],
+        "websiteURL": "https://pitchme.co",
+        "supportURL": "https://pitchme.co/contact-us",
+        "privacyPolicyURL": "https://pitchme.co/legal/privacy",
+        "termsOfServiceURL": "https://pitchme.co/legal/terms",
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/logo.png"
+      }
+    }
+  }
 }

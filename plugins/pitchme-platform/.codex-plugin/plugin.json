@@ -10,6 +10,7 @@
     "displayName": "Pitchme Platform",
     "shortDescription": "Search talent, run projects, and work in the PitchMe platform from your agent.",
     "developerName": "PitchMe",
-    "category": "Developer tools"
+    "category": "Developer tools",
+    "logo": "./assets/logo.svg"
   }
 }
