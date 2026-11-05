@@ -8,9 +8,69 @@
   "mcpServers": "./mcp.json",
   "interface": {
     "displayName": "Pitchme Platform",
-    "shortDescription": "Search talent, run projects, and work in the PitchMe platform from your agent.",
+    "shortDescription": "Search talent and run projects",
+    "longDescription": "A recruiter searches talent, runs hiring projects, reads credits, and opens support tickets in the PitchMe account they sign in to. The session stays in that account and group.",
     "developerName": "PitchMe",
-    "category": "Developer tools",
+    "category": "Business & Operations",
     "logo": "./assets/logo.svg"
+  },
+  "extensions": {
+    "com.openai": {
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "See who is signed in",
+              "prompt": "Who is signed in?",
+              "tools_triggered": "who_is_signed_in",
+              "expected_behavior": "Return the signed-in account and group."
+            },
+            {
+              "description": "Open a person",
+              "prompt": "Open this person.",
+              "tools_triggered": "open_talent",
+              "expected_behavior": "Return the talent record the server returned."
+            },
+            {
+              "description": "List hiring projects",
+              "prompt": "List my projects.",
+              "tools_triggered": "list_projects",
+              "expected_behavior": "Return the hiring projects for this sign-in."
+            },
+            {
+              "description": "Read the contract and credits",
+              "prompt": "What is my contract and Sonar balance?",
+              "tools_triggered": "read_contract_and_credits",
+              "expected_behavior": "Return the contract and the credit balance."
+            },
+            {
+              "description": "Open a support ticket",
+              "prompt": "Open a support ticket.",
+              "tools_triggered": "open_support_ticket",
+              "expected_behavior": "Open a ticket with the subject and message the person gave."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Act in another account",
+              "prompt": "Act in another account."
+            },
+            {
+              "description": "Reveal contacts without a request",
+              "prompt": "Reveal contacts when I did not ask."
+            },
+            {
+              "description": "Invent a record",
+              "prompt": "Invent a record the server did not return."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments."
+      },
+      "publication": {
+        "release_notes": "Version 1.0.0. Search talent, run hiring projects, read credits, and open support tickets in the signed-in PitchMe account."
+      }
+    }
   }
 }

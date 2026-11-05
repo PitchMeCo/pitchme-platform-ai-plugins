@@ -35,6 +35,21 @@ SECRET = re.compile(
 )
 PRODUCTION_MCP_URL = "https://mcp.platform.pitchme.co/mcp"
 ZIP_PATHS = ("plugin.json", "mcp.json", ".codex-plugin/plugin.json")
+OPENAI_CATEGORIES = {
+    "Productivity",
+    "Creativity",
+    "Developer Tools",
+    "Business & Operations",
+    "Data & Analytics",
+    "Communication",
+    "Education & Research",
+    "Security",
+    "Finance",
+    "Healthcare",
+    "Travel",
+    "Entertainment",
+    "Other",
+}
 GITHUB_MERGE = re.compile(r"^Merge pull request #(\d+) from \S+$")
 SQUASH = re.compile(r"^(?P<title>.+?) \(#(?P<num>\d+)\)$")
 RELEASE_SUBJECT = re.compile(r"^Release (\d+\.\d+\.\d+)(?: \(#\d+\))?$")
@@ -417,6 +432,17 @@ def skill_frontmatter(path: Path) -> None:
         fail(f"{path} skill name does not match {path.parent.name}")
 
 
+def check_listing(label: str, interface: object) -> None:
+    if not isinstance(interface, dict):
+        return
+    subtitle = interface.get("shortDescription")
+    if isinstance(subtitle, str) and len(subtitle) > 30:
+        fail(f"{label} subtitle must be 30 characters or fewer")
+    category = interface.get("category")
+    if isinstance(category, str) and category not in OPENAI_CATEGORIES:
+        fail(f"{label} category is not a valid OpenAI category")
+
+
 def validate_plugin(plugin: Path) -> None:
     if not plugin.is_dir():
         fail(f"missing plugin directory {plugin}")
@@ -480,6 +506,11 @@ def validate_plugin(plugin: Path) -> None:
     )
     if onboarding != "./skills/get-started/SKILL.md":
         fail("onboardingSkill must be ./skills/get-started/SKILL.md")
+    check_listing(
+        "plugin.json",
+        manifest.get("extensions", {}).get("com.openai", {}).get("interface"),
+    )
+    check_listing(".codex-plugin/plugin.json", codex.get("interface"))
 
 
 def zip_members(plugin: Path) -> list[Path]:
@@ -618,6 +649,18 @@ def package_self_test() -> None:
         codex["version"] = "9.9.9"
         (trial / ".codex-plugin" / "plugin.json").write_text(json.dumps(codex), encoding="utf-8")
         expect_invalid(trial, "versions disagree")
+        trial = root / "subtitle"
+        shutil.copytree(plugin, trial)
+        data = json.loads((trial / "plugin.json").read_text(encoding="utf-8"))
+        data["extensions"]["com.openai"]["interface"]["shortDescription"] = "x" * 31
+        (trial / "plugin.json").write_text(json.dumps(data), encoding="utf-8")
+        expect_invalid(trial, "30 characters")
+        trial = root / "category"
+        shutil.copytree(plugin, trial)
+        data = json.loads((trial / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        data["interface"]["category"] = "Developer tools"
+        (trial / ".codex-plugin" / "plugin.json").write_text(json.dumps(data), encoding="utf-8")
+        expect_invalid(trial, "not a valid OpenAI category")
 
 
 def publish_release(version: str) -> None:
