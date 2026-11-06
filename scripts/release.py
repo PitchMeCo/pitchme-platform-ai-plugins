@@ -331,7 +331,7 @@ def open_pull_request(version: str) -> None:
             "--repo",
             repo,
             "--base",
-            "main",
+            "master",
             "--head",
             f"{owner}:{branch}",
             "--state",
@@ -351,7 +351,7 @@ def open_pull_request(version: str) -> None:
         "",
         f"{RELEASE_TRAILER}{version}",
         "",
-        "After this pull request merges, the Release workflow tags that main commit when the message carries PitchMe-Release-Version. The workflow does not submit a catalog.",
+        "After this pull request merges, the Release workflow tags that master commit when the message carries PitchMe-Release-Version. The workflow does not submit a catalog.",
     ])
     run([
         "gh",
@@ -360,7 +360,7 @@ def open_pull_request(version: str) -> None:
         "--repo",
         repo,
         "--base",
-        "main",
+        "master",
         "--head",
         branch,
         "--title",

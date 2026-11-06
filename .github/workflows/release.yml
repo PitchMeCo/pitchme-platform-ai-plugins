@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: master
           fetch-depth: 0
       - env:
           BUMP: ${{ inputs.bump }}
@@ -47,7 +47,7 @@ jobs:
         run: python3 scripts/release.py bump
 
   tag:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: check
     runs-on: ubuntu-latest
     permissions:
